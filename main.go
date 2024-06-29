@@ -17,11 +17,21 @@ type UserDetail struct {
 	Age  int    `json:"age" jsonschema:"title=the age, description="the age of the user"`
 }
 
+type Prompt struct {
+	Instruction string
+	Input       string
+}
+
+func (p *Prompt) createPrompt() string {
+	return fmt.Sprintf("Instructions:\n%v\n\nInput:\n%v", p.Instruction, p.Input)
+}
+
 func ExtractUserDetail(client *instructor.InstructorAnthropic, ctx context.Context, content string) (anthropic.MessagesResponse, *UserDetail, error) {
 	var user UserDetail
+	prompt := Prompt{Instruction: "Extract the user details.", Input: content}
 	resp, err := client.CreateMessages(ctx, anthropic.MessagesRequest{
 		Model:     anthropic.ModelClaude3Haiku20240307,
-		Messages:  []anthropic.Message{anthropic.NewUserTextMessage(fmt.Sprintf("Extract the user information: %s", content))},
+		Messages:  []anthropic.Message{anthropic.NewUserTextMessage(prompt.createPrompt())},
 		MaxTokens: 4000,
 	},
 		&user,
@@ -43,11 +53,10 @@ func main() {
 
 	client := instructor.FromAnthropic(anthropic.NewClient(os.Getenv("ANTHROPIC_API_KEY")), instructor.WithMode(instructor.ModeToolCall), instructor.WithMaxRetries(3))
 	for _, user := range lines {
-		r, u, e := ExtractUserDetail(client, ctx, user)
+		_, u, e := ExtractUserDetail(client, ctx, user)
 		if e != nil {
 			log.Fatal(e)
 		}
-		fmt.Println(*r.Content[0].Text)
 		fmt.Println(u.Age)
 		fmt.Println(u.Name)
 	}
