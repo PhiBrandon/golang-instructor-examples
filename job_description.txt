@@ -1,0 +1,29 @@
+Your role is to manage the deployment of our SaaS platform in Azure Cloud using Azure DevOps.
+
+You must have strong expertise in:
+
+-Azure DevOps (CI/CD)
+
+-Kubernetes cluster (CKA, CKAD)
+
+-Helm deployments
+
+-Azure Infrastructure
+
+-Terraform
+
+-Git (Branching, Merging, Commits, Tagging)
+
+Knowledge of the following items is a plus:
+
+-.NET C#
+
+-Microservices / Event-Driven architecture
+
+-Kafka
+
+-MongoDB
+
+-Elastic Search
+
+-Redis
