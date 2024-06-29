@@ -14,71 +14,118 @@ import (
 	"github.com/phibrandon/instructor_demo/pkg/output"
 )
 
-func ExtractUserDetail(client *instructor.InstructorAnthropic, ctx context.Context, content string) (anthropic.MessagesResponse, *output.UserDetail, error) {
+const (
+	maxTokens = 4000
+	model     = anthropic.ModelClaude3Haiku20240307
+)
+
+type Client struct {
+	*instructor.InstructorAnthropic
+}
+
+func NewClient() (*Client, error) {
+	if err := godotenv.Load(); err != nil {
+		return nil, fmt.Errorf("loading environment: %w", err)
+	}
+
+	apiKey := os.Getenv("ANTHROPIC_API_KEY")
+	if apiKey == "" {
+		return nil, fmt.Errorf("ANTHROPIC_API_KEY is not set")
+	}
+
+	client := instructor.FromAnthropic(
+		anthropic.NewClient(apiKey),
+		instructor.WithMode(instructor.ModeToolCall),
+		instructor.WithMaxRetries(3),
+	)
+
+	return &Client{client}, nil
+}
+
+func (c *Client) ExtractUserDetail(ctx context.Context, content string) (*output.UserDetail, error) {
 	var user output.UserDetail
-	prompt := input.Prompt{Instruction: "Given a job description, list all of the perceived and real problems and obstacles that the job poster could or is currently facing.", Input: content}
-	resp, err := client.CreateMessages(ctx, anthropic.MessagesRequest{
-		Model:     anthropic.ModelClaude3Haiku20240307,
+	prompt := input.Prompt{
+		Instruction: "Given a job description, list all of the perceived and real problems and obstacles that the job poster could or is currently facing.",
+		Input:       content,
+	}
+
+	_, err := c.CreateMessages(ctx, anthropic.MessagesRequest{
+		Model:     model,
 		Messages:  []anthropic.Message{anthropic.NewUserTextMessage(prompt.Createprompt())},
-		MaxTokens: 4000,
-	},
-		&user,
-	)
-	return resp, &user, err
+		MaxTokens: maxTokens,
+	}, &user)
+
+	return &user, err
 }
 
-func ExtractProblems(client *instructor.InstructorAnthropic, ctx context.Context, content string) (anthropic.MessagesResponse, *output.Problems, error) {
+func (c *Client) ExtractProblems(ctx context.Context, content string) (*output.Problems, error) {
 	var problems output.Problems
-	prompt := input.Prompt{Instruction: "Given a job description, list all of the perceived and real problems and obstacles that the job poster could or is currently facing.", Input: content}
-	resp, err := client.CreateMessages(ctx, anthropic.MessagesRequest{
-		Model:     anthropic.ModelClaude3Haiku20240307,
+	prompt := input.Prompt{
+		Instruction: "Given a job description, list all of the perceived and real problems and obstacles that the job poster could or is currently facing.",
+		Input:       content,
+	}
+
+	_, err := c.CreateMessages(ctx, anthropic.MessagesRequest{
+		Model:     model,
 		Messages:  []anthropic.Message{anthropic.NewUserTextMessage(prompt.Createprompt())},
-		MaxTokens: 4000,
-	},
-		&problems,
-	)
-	return resp, &problems, err
+		MaxTokens: maxTokens,
+	}, &problems)
+
+	return &problems, err
 }
 
-func RunUserDetail(client *instructor.InstructorAnthropic, ctx context.Context) {
+func (c *Client) RunUserDetail(ctx context.Context) error {
 	userFile, err := os.ReadFile("user_detail.txt")
 	if err != nil {
-		log.Fatal()
+		return fmt.Errorf("reading user_detail.txt: %w", err)
 	}
+
 	lines := strings.Split(string(userFile), "\n")
 	for _, user := range lines {
-		_, u, e := ExtractUserDetail(client, ctx, user)
-		if e != nil {
-			log.Fatal(e)
+		u, err := c.ExtractUserDetail(ctx, user)
+		if err != nil {
+			return fmt.Errorf("extracting user detail: %w", err)
 		}
-		fmt.Println(u.Age)
-		fmt.Println(u.Name)
+		fmt.Println("Age:", u.Age)
+		fmt.Println("Name:", u.Name)
 	}
+
+	return nil
 }
 
-func RunProblems(client *instructor.InstructorAnthropic, ctx context.Context) {
+func (c *Client) RunProblems(ctx context.Context) error {
 	jobDescription, err := os.ReadFile("job_description.txt")
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("reading job_description.txt: %w", err)
 	}
-	_, u, e := ExtractProblems(client, ctx, string(jobDescription))
-	if e != nil {
-		log.Fatal(e)
+
+	problems, err := c.ExtractProblems(ctx, string(jobDescription))
+	if err != nil {
+		return fmt.Errorf("extracting problems: %w", err)
 	}
-	for _, problem := range u.Problems {
-		fmt.Println(problem.Id)
-		fmt.Println(problem.Problem)
+
+	for _, problem := range problems.Problems {
+		fmt.Println("ID:", problem.Id)
+		fmt.Println("Problem:", problem.Problem)
 	}
+
+	return nil
 }
 
 func main() {
-	ctx := context.Background()
-	err := godotenv.Load()
+	client, err := NewClient()
 	if err != nil {
-		log.Fatal("Unable to load environment, check your files.")
+		log.Fatalf("Error creating client: %v", err)
 	}
-	client := instructor.FromAnthropic(anthropic.NewClient(os.Getenv("ANTHROPIC_API_KEY")), instructor.WithMode(instructor.ModeToolCall), instructor.WithMaxRetries(3))
-	//RunUserDetail(client, ctx)
-	RunProblems(client, ctx)
 
+	ctx := context.Background()
+
+	// Uncomment the function you want to run
+	// if err := client.RunUserDetail(ctx); err != nil {
+	// 	log.Fatalf("Error running user detail: %v", err)
+	// }
+
+	if err := client.RunProblems(ctx); err != nil {
+		log.Fatalf("Error running problems: %v", err)
+	}
 }
